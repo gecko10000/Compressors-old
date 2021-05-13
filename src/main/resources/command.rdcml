@@ -1,0 +1,18 @@
+compressor,compressors {
+	give player:target?(context self) {
+		permission compressors.give
+		help Give a compressor to a player (or yourself)
+		hook give
+	}
+	set string:recipe fromto:which {
+		user player
+		permission compressors.set
+		help Set the item you're holding as the ingredient or result of the recipe
+		hook set
+	}
+	reload {
+		permission compressors.reload
+		help Reload the configs
+		hook reload
+	}
+}
