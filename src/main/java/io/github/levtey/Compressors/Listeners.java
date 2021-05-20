@@ -1,6 +1,8 @@
 package io.github.levtey.Compressors;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -62,10 +64,14 @@ public class Listeners implements Listener {
 		}
 	}
 	
+	private Set<Block> ignoreExtra = new HashSet<>();
+	
 	@SuppressWarnings("unchecked")
 	@EventHandler
 	public void onDispense(BlockDispenseEvent evt) {
-		Dispenser dispenser = (Dispenser) evt.getBlock().getState();
+		Block block = evt.getBlock();
+		if (ignoreExtra.contains(block)) return;
+		Dispenser dispenser = (Dispenser) block.getState();
 		if (!dispenser.getPersistentDataContainer().has(plugin.compressorKey, PersistentDataType.BYTE)) return;
 		String selectedRecipe = null;
 		ConfigurationSection recipeSection = plugin.config.getConfig().getConfigurationSection("recipes");
@@ -75,8 +81,7 @@ public class Listeners implements Listener {
 			List<ItemStack> requiredItems = (List<ItemStack>) recipeSection.getList(key + ".from");
 			boolean valid = true;
 			for (ItemStack requiredItem : requiredItems) {
-				if (!dispenser.getInventory().containsAtLeast(requiredItem, 
-						requiredItem.getAmount() + (requiredItem.isSimilar(dispensedItem) ? 0 : 1))) {
+				if (ItemUtils.count(dispenser.getInventory(), requiredItem) < requiredItem.getAmount() + (requiredItem.isSimilar(dispensedItem) ? -1 : 0)) {
 					valid = false;
 					break;
 				}
@@ -89,22 +94,15 @@ public class Listeners implements Listener {
 			evt.setCancelled(true);
 			return;
 		}
-		for (ItemStack item : (List<ItemStack>) recipeSection.getList(selectedRecipe + ".from")) {
-			Task.syncDelayed(() -> ItemUtils.remove(dispenser.getInventory(), item, item.getAmount()));
-		}
+		String selectedCopy = selectedRecipe;
+		ignoreExtra.add(block);
+		Task.syncDelayed(() -> {
+			ignoreExtra.remove(block);
+			for (ItemStack item : (List<ItemStack>) recipeSection.getList(selectedCopy + ".from")) {
+				ItemUtils.remove(dispenser.getInventory(), item, item.getAmount());
+			}
+		});
 		evt.setItem(recipeSection.getItemStack(selectedRecipe + ".to"));
-		/*ItemStack fromItem = null;
-		for (String key : recipeSection.getKeys(false)) {
-			fromItem = plugin.config.getConfig().getItemStack("recipes." + key + ".from");
-			if (!fromItem.isSimilar(evt.getItem())) continue;
-			selectedRecipe = key;
-			break;
-		}
-		if (selectedRecipe == null) return;
-		if (!dispenser.getInventory().containsAtLeast(fromItem, fromItem.getAmount() - 1)) return;
-		final ItemStack finalFromCopy = fromItem;
-		Task.syncDelayed(() -> ItemUtils.remove(dispenser.getInventory(), finalFromCopy, finalFromCopy.getAmount()));
-		evt.setItem(plugin.config.getConfig().getItemStack("recipes." + selectedRecipe + ".to", new ItemStack(Material.STONE)));*/
 	}
 
 }
