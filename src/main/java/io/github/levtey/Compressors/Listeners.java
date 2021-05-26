@@ -34,7 +34,7 @@ public class Listeners implements Listener {
 		Bukkit.getPluginManager().registerEvents(this, plugin);
 	}
 	
-	@EventHandler
+	@EventHandler (ignoreCancelled = true)
 	public void onPlace(BlockPlaceEvent evt) {
 		if (evt.getItemInHand().getType() == Material.AIR) return;
 		if (!evt.getItemInHand().getItemMeta().getPersistentDataContainer().has(plugin.compressorKey, PersistentDataType.BYTE)) return;
@@ -49,14 +49,14 @@ public class Listeners implements Listener {
 		dispenser.update(true);
 	}
 	
-	@EventHandler (priority = EventPriority.HIGHEST)
-	public void onBreak(BlockBreakEvent evt) {
-		Block block = evt.getBlock();
-		if (block.getType() != Material.DISPENSER) return;
-		Dispenser dispenser = (Dispenser) block.getState();
+	@EventHandler (ignoreCancelled = true, priority = EventPriority.HIGHEST)
+	public void onBreak(BlockDropItemEvent evt) {
+		if (!(evt.getBlockState() instanceof Dispenser)) return;
+		Dispenser dispenser = (Dispenser) evt.getBlockState();
 		if (!dispenser.getPersistentDataContainer().has(plugin.compressorKey, PersistentDataType.BYTE)) return;
-		evt.setDropItems(false);
-		Location location = block.getLocation();
+		if (evt.getItems().isEmpty()) return;
+		evt.getItems().clear();
+		Location location = dispenser.getLocation();
 		location.getWorld().dropItemNaturally(location, plugin.compressor());
 		for (ItemStack item : dispenser.getInventory()) {
 			if (item == null) continue;
@@ -67,7 +67,7 @@ public class Listeners implements Listener {
 	private Set<Block> ignoreExtra = new HashSet<>();
 	
 	@SuppressWarnings("unchecked")
-	@EventHandler
+	@EventHandler (ignoreCancelled = true)
 	public void onDispense(BlockDispenseEvent evt) {
 		Block block = evt.getBlock();
 		if (ignoreExtra.contains(block)) return;
