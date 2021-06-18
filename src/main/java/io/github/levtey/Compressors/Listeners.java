@@ -10,7 +10,9 @@ import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockState;
 import org.bukkit.block.Dispenser;
+import org.bukkit.block.data.Directional;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.entity.EntityType;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -64,13 +66,10 @@ public class Listeners implements Listener {
 		}
 	}
 	
-	private Set<Block> ignoreExtra = new HashSet<>();
-	
 	@SuppressWarnings("unchecked")
 	@EventHandler (ignoreCancelled = true)
 	public void onDispense(BlockDispenseEvent evt) {
 		Block block = evt.getBlock();
-		if (ignoreExtra.contains(block)) return;
 		Dispenser dispenser = (Dispenser) block.getState();
 		if (!dispenser.getPersistentDataContainer().has(plugin.compressorKey, PersistentDataType.BYTE)) return;
 		String selectedRecipe = null;
@@ -94,15 +93,22 @@ public class Listeners implements Listener {
 			evt.setCancelled(true);
 			return;
 		}
+		ItemStack to = recipeSection.getItemStack(selectedRecipe + ".to");
+		Material type = to.getType();
+		String itemName = type.toString();
+		if (itemName.endsWith("_SPAWN_EGG") || type == Material.TNT) {
+			evt.setCancelled(true);
+			Location spawnLoc = block.getRelative(((Directional) block.getBlockData()).getFacing()).getLocation().add(0.5, 0.5, 0.5);
+			spawnLoc.getWorld().spawnEntity(spawnLoc, type == Material.TNT ? EntityType.PRIMED_TNT : EntityType.valueOf(itemName.substring(0, itemName.indexOf("_SPAWN_EGG"))));
+		} else {
+			evt.setItem(recipeSection.getItemStack(selectedRecipe + ".to"));
+		}
 		String selectedCopy = selectedRecipe;
-		ignoreExtra.add(block);
 		Task.syncDelayed(() -> {
-			ignoreExtra.remove(block);
 			for (ItemStack item : (List<ItemStack>) recipeSection.getList(selectedCopy + ".from")) {
 				ItemUtils.remove(dispenser.getInventory(), item, item.getAmount());
 			}
 		});
-		evt.setItem(recipeSection.getItemStack(selectedRecipe + ".to"));
 	}
 
 }
