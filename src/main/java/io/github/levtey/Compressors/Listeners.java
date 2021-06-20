@@ -55,15 +55,11 @@ public class Listeners implements Listener {
 	public void onBreak(BlockDropItemEvent evt) {
 		if (!(evt.getBlockState() instanceof Dispenser)) return;
 		Dispenser dispenser = (Dispenser) evt.getBlockState();
+		Location location = dispenser.getLocation();
 		if (!dispenser.getPersistentDataContainer().has(plugin.compressorKey, PersistentDataType.BYTE)) return;
 		if (evt.getItems().isEmpty()) return;
-		evt.getItems().clear();
-		Location location = dispenser.getLocation();
+		evt.getItems().remove(evt.getItems().size() - 1);
 		location.getWorld().dropItemNaturally(location, plugin.compressor());
-		for (ItemStack item : dispenser.getInventory()) {
-			if (item == null) continue;
-			location.getWorld().dropItemNaturally(location, item);
-		}
 	}
 	
 	@SuppressWarnings("unchecked")
@@ -99,7 +95,8 @@ public class Listeners implements Listener {
 		if (itemName.endsWith("_SPAWN_EGG") || type == Material.TNT) {
 			evt.setCancelled(true);
 			Location spawnLoc = block.getRelative(((Directional) block.getBlockData()).getFacing()).getLocation().add(0.5, 0.5, 0.5);
-			spawnLoc.getWorld().spawnEntity(spawnLoc, type == Material.TNT ? EntityType.PRIMED_TNT : EntityType.valueOf(itemName.substring(0, itemName.indexOf("_SPAWN_EGG"))));
+			spawnLoc.getWorld().spawnEntity(spawnLoc, type == Material.TNT ? EntityType.PRIMED_TNT :
+				type == Material.MOOSHROOM_SPAWN_EGG ? EntityType.MUSHROOM_COW : EntityType.valueOf(itemName.substring(0, itemName.indexOf("_SPAWN_EGG"))));
 		} else {
 			evt.setItem(recipeSection.getItemStack(selectedRecipe + ".to"));
 		}
