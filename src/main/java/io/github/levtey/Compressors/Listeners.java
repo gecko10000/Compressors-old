@@ -71,19 +71,26 @@ public class Listeners implements Listener {
 		String selectedRecipe = null;
 		ConfigurationSection recipeSection = plugin.config.getConfig().getConfigurationSection("recipes");
 		if (recipeSection == null) return;
+		boolean hasDispensedItem = false;
 		ItemStack dispensedItem = evt.getItem();
 		for (String key : recipeSection.getKeys(false)) {
 			List<ItemStack> requiredItems = (List<ItemStack>) recipeSection.getList(key + ".from");
 			boolean valid = true;
+			hasDispensedItem = false;
 			for (ItemStack requiredItem : requiredItems) {
 				if (ItemUtils.count(dispenser.getInventory(), requiredItem) < requiredItem.getAmount() + (requiredItem.isSimilar(dispensedItem) ? -1 : 0)) {
 					valid = false;
 					break;
 				}
+				if (requiredItem.isSimilar(evt.getItem())) hasDispensedItem = true;
 			}
-			if (!valid) continue;
+			if (!valid || !hasDispensedItem) continue;
 			selectedRecipe = key;
 			break;
+		}
+		if (!hasDispensedItem) {
+			evt.setCancelled(true);
+			return;
 		}
 		if (selectedRecipe == null) {
 			evt.setCancelled(true);
@@ -98,7 +105,7 @@ public class Listeners implements Listener {
 			spawnLoc.getWorld().spawnEntity(spawnLoc, type == Material.TNT ? EntityType.PRIMED_TNT :
 				type == Material.MOOSHROOM_SPAWN_EGG ? EntityType.MUSHROOM_COW : EntityType.valueOf(itemName.substring(0, itemName.indexOf("_SPAWN_EGG"))));
 		} else {
-			evt.setItem(recipeSection.getItemStack(selectedRecipe + ".to"));
+			evt.setItem(to);
 		}
 		String selectedCopy = selectedRecipe;
 		Task.syncDelayed(() -> {
