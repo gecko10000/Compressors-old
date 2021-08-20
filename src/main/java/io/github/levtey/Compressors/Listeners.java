@@ -66,6 +66,7 @@ public class Listeners implements Listener {
 	@EventHandler (ignoreCancelled = true)
 	public void onDispense(BlockDispenseEvent evt) {
 		Block block = evt.getBlock();
+		if (block.getType() != Material.DISPENSER) return;
 		Dispenser dispenser = (Dispenser) block.getState();
 		if (!dispenser.getPersistentDataContainer().has(plugin.compressorKey, PersistentDataType.BYTE)) return;
 		String selectedRecipe = null;
@@ -73,6 +74,10 @@ public class Listeners implements Listener {
 		if (recipeSection == null) return;
 		boolean hasDispensedItem = false;
 		ItemStack dispensedItem = evt.getItem();
+		if (dispensedItem.getType().toString().endsWith("_SPAWN_EGG")) {
+			evt.setCancelled(true);
+			return;
+		}
 		for (String key : recipeSection.getKeys(false)) {
 			List<ItemStack> requiredItems = (List<ItemStack>) recipeSection.getList(key + ".from");
 			boolean valid = true;
