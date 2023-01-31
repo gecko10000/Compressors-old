@@ -1,7 +1,7 @@
 name: Compressors
 main: io.github.levtey.Compressors.Compressors
 api-version: 1.16
-version: 0.0.1
+version: 0.0.2
 depend: [RedLib]
 permissions:
   compressors.place:

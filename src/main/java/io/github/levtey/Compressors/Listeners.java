@@ -1,26 +1,19 @@
 package io.github.levtey.Compressors;
 
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
-import org.bukkit.block.BlockState;
-import org.bukkit.block.Dispenser;
-import org.bukkit.block.data.Directional;
+import org.bukkit.block.Dropper;
 import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.entity.EntityType;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
-import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockDispenseEvent;
 import org.bukkit.event.block.BlockDropItemEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
-import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataType;
 
@@ -41,22 +34,22 @@ public class Listeners implements Listener {
 		if (evt.getItemInHand().getType() == Material.AIR) return;
 		if (!evt.getItemInHand().getItemMeta().getPersistentDataContainer().has(plugin.compressorKey, PersistentDataType.BYTE)) return;
 		Block block = evt.getBlock();
-		if (block.getType() != Material.DISPENSER) return;
+		if (block.getType() != Material.DROPPER) return;
 		if (!evt.getPlayer().hasPermission("compressors.place")) {
 			evt.setCancelled(true);
 			return;
 		}
-		Dispenser dispenser = (Dispenser) block.getState();
-		dispenser.getPersistentDataContainer().set(plugin.compressorKey, PersistentDataType.BYTE, (byte) 1);
-		dispenser.update(true);
+		Dropper dropper = (Dropper) block.getState();
+		dropper.getPersistentDataContainer().set(plugin.compressorKey, PersistentDataType.BYTE, (byte) 1);
+		dropper.update(true);
 	}
 	
 	@EventHandler (ignoreCancelled = true, priority = EventPriority.HIGHEST)
 	public void onBreak(BlockDropItemEvent evt) {
-		if (!(evt.getBlockState() instanceof Dispenser)) return;
-		Dispenser dispenser = (Dispenser) evt.getBlockState();
-		Location location = dispenser.getLocation();
-		if (!dispenser.getPersistentDataContainer().has(plugin.compressorKey, PersistentDataType.BYTE)) return;
+		if (!(evt.getBlockState() instanceof Dropper)) return;
+		Dropper dropper = (Dropper) evt.getBlockState();
+		Location location = dropper.getLocation();
+		if (!dropper.getPersistentDataContainer().has(plugin.compressorKey, PersistentDataType.BYTE)) return;
 		if (evt.getItems().isEmpty()) return;
 		evt.getItems().remove(evt.getItems().size() - 1);
 		location.getWorld().dropItemNaturally(location, plugin.compressor());
@@ -66,24 +59,21 @@ public class Listeners implements Listener {
 	@EventHandler (ignoreCancelled = true)
 	public void onDispense(BlockDispenseEvent evt) {
 		Block block = evt.getBlock();
-		if (block.getType() != Material.DISPENSER) return;
-		Dispenser dispenser = (Dispenser) block.getState();
-		if (!dispenser.getPersistentDataContainer().has(plugin.compressorKey, PersistentDataType.BYTE)) return;
+		if (block.getType() != Material.DROPPER) return;
+        Dropper dropper = (Dropper) block.getState();
+		if (!dropper.getPersistentDataContainer().has(plugin.compressorKey, PersistentDataType.BYTE)) return;
 		String selectedRecipe = null;
 		ConfigurationSection recipeSection = plugin.config.getConfig().getConfigurationSection("recipes");
 		if (recipeSection == null) return;
 		boolean hasDispensedItem = false;
 		ItemStack dispensedItem = evt.getItem();
-		if (dispensedItem.getType().toString().endsWith("_SPAWN_EGG")) {
-			evt.setCancelled(true);
-			return;
-		}
 		for (String key : recipeSection.getKeys(false)) {
 			List<ItemStack> requiredItems = (List<ItemStack>) recipeSection.getList(key + ".from");
 			boolean valid = true;
 			hasDispensedItem = false;
 			for (ItemStack requiredItem : requiredItems) {
-				if (ItemUtils.count(dispenser.getInventory(), requiredItem) < requiredItem.getAmount() + (requiredItem.isSimilar(dispensedItem) ? -1 : 0)) {
+                // subtracting is required because the inventory technically has the dispensed item missing
+				if (ItemUtils.count(dropper.getInventory(), requiredItem) < requiredItem.getAmount() + (requiredItem.isSimilar(dispensedItem) ? -1 : 0)) {
 					valid = false;
 					break;
 				}
@@ -94,7 +84,7 @@ public class Listeners implements Listener {
 			break;
 		}
 		if (!hasDispensedItem) {
-			evt.setCancelled(true);
+			//evt.setCancelled(true);
 			return;
 		}
 		if (selectedRecipe == null) {
@@ -103,19 +93,14 @@ public class Listeners implements Listener {
 		}
 		ItemStack to = recipeSection.getItemStack(selectedRecipe + ".to");
 		Material type = to.getType();
-		String itemName = type.toString();
-		if (itemName.endsWith("_SPAWN_EGG") || type == Material.TNT) {
-			evt.setCancelled(true);
-			Location spawnLoc = block.getRelative(((Directional) block.getBlockData()).getFacing()).getLocation().add(0.5, 0.5, 0.5);
-			spawnLoc.getWorld().spawnEntity(spawnLoc, type == Material.TNT ? EntityType.PRIMED_TNT :
-				type == Material.MOOSHROOM_SPAWN_EGG ? EntityType.MUSHROOM_COW : EntityType.valueOf(itemName.substring(0, itemName.indexOf("_SPAWN_EGG"))));
-		} else {
-			evt.setItem(to);
-		}
+		evt.setItem(to);
 		String selectedCopy = selectedRecipe;
+        boolean removedOriginal = false;
 		Task.syncDelayed(() -> {
 			for (ItemStack item : (List<ItemStack>) recipeSection.getList(selectedCopy + ".from")) {
-				ItemUtils.remove(dispenser.getInventory(), item, item.getAmount());
+                int amount = item.getAmount();
+                if (!removedOriginal && item.isSimilar(dispensedItem)) amount--;
+				ItemUtils.remove(dropper.getInventory(), item, amount);
 			}
 		});
 	}
