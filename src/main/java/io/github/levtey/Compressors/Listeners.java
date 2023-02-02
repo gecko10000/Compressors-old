@@ -1,6 +1,8 @@
 package io.github.levtey.Compressors;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -65,41 +67,51 @@ public class Listeners implements Listener {
 		String selectedRecipe = null;
 		ConfigurationSection recipeSection = plugin.config.getConfig().getConfigurationSection("recipes");
 		if (recipeSection == null) return;
-		boolean hasDispensedItem = false;
+
 		ItemStack dispensedItem = evt.getItem();
-		for (String key : recipeSection.getKeys(false)) {
-			List<ItemStack> requiredItems = (List<ItemStack>) recipeSection.getList(key + ".from");
-			boolean valid = true;
-			hasDispensedItem = false;
-			for (ItemStack requiredItem : requiredItems) {
-                // subtracting is required because the inventory technically has the dispensed item missing
-				if (ItemUtils.count(dropper.getInventory(), requiredItem) < requiredItem.getAmount() + (requiredItem.isSimilar(dispensedItem) ? -1 : 0)) {
-					valid = false;
-					break;
-				}
-				if (requiredItem.isSimilar(evt.getItem())) hasDispensedItem = true;
+		for (String recipeName : recipeSection.getKeys(false)) {
+			List<ItemStack> requiredItems = (List<ItemStack>) recipeSection.getList(recipeName + ".from");
+            Map<ItemStack, Integer> itemMap = new HashMap<>();
+            for (ItemStack item : requiredItems) {
+                ItemStack key = item.clone();
+                key.setAmount(1);
+                itemMap.compute(key, (unused, existing) -> (existing == null ? 0 : existing) + item.getAmount());
+            }
+			for (ItemStack requiredItem : itemMap.keySet()) {
+                itemMap.computeIfPresent(requiredItem, (i, amt) -> amt - ItemUtils.count(dropper.getInventory(), requiredItem));
 			}
-			if (!valid || !hasDispensedItem) continue;
-			selectedRecipe = key;
+
+            // dispensed item is not present in inventory at time of event
+            ItemStack dispensedKey = dispensedItem.clone();
+            dispensedKey.setAmount(1);
+            itemMap.computeIfPresent(dispensedKey, (i, amt) -> amt - 1);
+
+            boolean valid = true;
+            for (Integer value : itemMap.values()) {
+                if (value > 0) {
+                    valid = false;
+                    break;
+                }
+            }
+            if (!valid) continue;
+			selectedRecipe = recipeName;
 			break;
-		}
-		if (!hasDispensedItem) {
-			//evt.setCancelled(true);
-			return;
 		}
 		if (selectedRecipe == null) {
 			evt.setCancelled(true);
 			return;
 		}
 		ItemStack to = recipeSection.getItemStack(selectedRecipe + ".to");
-		Material type = to.getType();
 		evt.setItem(to);
 		String selectedCopy = selectedRecipe;
-        boolean removedOriginal = false;
 		Task.syncDelayed(() -> {
+            boolean removedOriginal = false;
 			for (ItemStack item : (List<ItemStack>) recipeSection.getList(selectedCopy + ".from")) {
                 int amount = item.getAmount();
-                if (!removedOriginal && item.isSimilar(dispensedItem)) amount--;
+                if (!removedOriginal && item.isSimilar(dispensedItem)) {
+                    amount--;
+                    removedOriginal = true;
+                }
 				ItemUtils.remove(dropper.getInventory(), item, amount);
 			}
 		});
